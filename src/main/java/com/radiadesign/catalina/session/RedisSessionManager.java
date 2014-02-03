@@ -37,6 +37,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
   protected String password = null;
   protected int timeout = Protocol.DEFAULT_TIMEOUT;
   protected JedisPool connectionPool;
+  protected JedisPoolConfig connectionPoolConfig = new JedisPoolConfig();
 
   protected RedisSessionHandlerValve handlerValve;
   protected ThreadLocal<RedisSession> currentSession = new ThreadLocal<RedisSession>();
@@ -95,6 +96,38 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
 
   public void setSerializationStrategyClass(String strategy) {
     this.serializationStrategyClass = strategy;
+  }
+
+  public int getMaxIdle() {
+    return this.connectionPoolConfig.getMaxIdle();
+  }
+
+  public void setMaxIdle(int maxIdle) {
+    this.connectionPoolConfig.setMaxIdle(maxIdle);
+  }
+
+  public int getMinIdle() {
+    return this.connectionPoolConfig.getMinIdle();
+  }
+
+  public void setMinIdle(int minIdle) {
+    this.connectionPoolConfig.setMinIdle(minIdle);
+  }
+
+  public int getMaxActive() {
+    return this.connectionPoolConfig.getMaxActive();
+  }
+
+  public void setMaxActive(int maxActive) {
+    this.connectionPoolConfig.setMaxActive(maxActive);
+  }
+
+  public long getMaxWait() {
+    return this.connectionPoolConfig.getMaxWait();
+  }
+
+  public void setMaxWait(long maxWait) {
+    this.connectionPoolConfig.setMaxWait(maxWait);
   }
 
   @Override
@@ -532,7 +565,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
   private void initializeDatabaseConnection() throws LifecycleException {
     try {
       // TODO: Allow configuration of pool (such as size...)
-      connectionPool = new JedisPool(new JedisPoolConfig(), getHost(), getPort(), getTimeout(), getPassword());
+      connectionPool = new JedisPool(this.connectionPoolConfig, getHost(), getPort(), getTimeout(), getPassword());
     } catch (Exception e) {
       e.printStackTrace();
       throw new LifecycleException("Error Connecting to Redis", e);
