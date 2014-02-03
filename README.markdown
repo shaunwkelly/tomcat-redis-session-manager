@@ -41,7 +41,12 @@ Add the following into your Tomcat context.xml (or the context block of the serv
              host="localhost" <!-- optional: defaults to "localhost" -->
              port="6379" <!-- optional: defaults to "6379" -->
              database="0" <!-- optional: defaults to "0" -->
-             maxInactiveInterval="60" <!-- optional: defaults to "60" (in seconds) --> />
+             maxInactiveInterval="60" <!-- optional: defaults to "60" (in seconds) -->
+             maxIdle="8"   <!-- optional: defaults to "8" -->
+             minIdle="0"   <!-- optional: defaults to "0" -->
+             minActive="8" <!-- optional: defaults to "8" -->
+             minWait="-1"  <!-- optional: defaults to "-1" --> />
+
 
 The Valve must be declared before the Manager.
 
