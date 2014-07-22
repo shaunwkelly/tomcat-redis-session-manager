@@ -52,8 +52,7 @@ public class RedisSession extends StandardSession {
     if ( (value != null || oldValue != null)
          && ( value == null && oldValue != null
               || oldValue == null && value != null
-              || !value.getClass().isInstance(oldValue)
-              || !value.equals(oldValue) ) ) {
+              || !value.getClass().isInstance(oldValue)) ) {
       changedAttributes.put(key, value);
     }
 
