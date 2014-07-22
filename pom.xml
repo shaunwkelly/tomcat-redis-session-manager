@@ -1,0 +1,60 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.radiadesign</groupId>
+    <artifactId>tomcat-redis-session-manager</artifactId>
+    <version>1.3.4</version>
+    <packaging>jar</packaging>
+
+    <name>tomcat-redis-session-manager</name>
+    <url>http://www.hotmaths.com.au</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.tomcat</groupId>
+            <artifactId>tomcat-catalina</artifactId>
+            <version>7.0.54</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+            <version>2.5.1</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
+
+    <!--repositories>
+        <repository>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>daily</updatePolicy>
+                <checksumPolicy>warn</checksumPolicy>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+                <checksumPolicy>warn</checksumPolicy>
+            </snapshots>
+            <id>hotmaths-releases</id>
+            <name>Hotmaths releases</name>
+            <url>http://nexus.hotmaths.com.au/nexus/content/repositories/releases</url>
+            <layout>default</layout>
+        </repository>
+    </repositories-->
+
+    <distributionManagement>
+        <repository>
+            <uniqueVersion>true</uniqueVersion>
+            <id>hotmaths-releases</id>
+            <name>Hotmaths Repository</name>
+            <url>http://nexus.hotmaths.com.au/nexus/content/repositories/releases</url>
+            <layout>default</layout>
+        </repository>
+    </distributionManagement>
+</project>
