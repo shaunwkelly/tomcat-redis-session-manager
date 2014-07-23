@@ -39,7 +39,6 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
     protected JedisPool connectionPool;
     protected JedisPoolConfig connectionPoolConfig = new JedisPoolConfig();
 
-    protected RedisSessionHandlerValve handlerValve;
     protected ThreadLocal<RedisSession> currentSession = new ThreadLocal<RedisSession>();
     protected ThreadLocal<String> currentSessionId = new ThreadLocal<String>();
     protected ThreadLocal<Boolean> currentSessionIsPersisted = new ThreadLocal<Boolean>();
@@ -399,19 +398,19 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         Boolean error = true;
 
         try {
-            log.trace("Attempting to load session " + id + " from Redis");
+            log.debug("Attempting to load session " + id + " from Redis");
 
             jedis = acquireConnection();
             byte[] data = jedis.get(id.getBytes());
             error = false;
 
             if (data == null) {
-                log.trace("Session " + id + " not found in Redis");
+                log.debug("Session " + id + " not found in Redis");
                 session = null;
             } else if (Arrays.equals(NULL_SESSION, data)) {
                 throw new IllegalStateException("Race condition encountered: attempted to load session[" + id + "] which has been created but not yet serialized.");
             } else {
-                log.trace("Deserializing session " + id + " from Redis");
+                log.debug("Deserializing session " + id + " from Redis");
                 session = (RedisSession) createEmptySession();
                 serializer.deserializeInto(data, session);
                 session.setId(id);
@@ -422,10 +421,10 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
                 session.resetDirtyTracking();
 
                 if (log.isTraceEnabled()) {
-                    log.trace("Session Contents [" + id + "]:");
+                    log.debug("Session Contents [" + id + "]:");
                     Enumeration en = session.getAttributeNames();
                     while (en.hasMoreElements()) {
-                        log.trace("  " + en.nextElement());
+                        log.debug("  " + en.nextElement());
                     }
                 }
             }
@@ -449,15 +448,15 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         Boolean error = true;
 
         try {
-            log.trace("Saving session " + session + " into Redis");
+            log.debug("Saving session " + session + " into Redis");
 
             RedisSession redisSession = (RedisSession) session;
 
             if (log.isTraceEnabled()) {
-                log.trace("Session Contents [" + redisSession.getId() + "]:");
+                log.debug("Session Contents [" + redisSession.getId() + "]:");
                 Enumeration en = redisSession.getAttributeNames();
                 while (en.hasMoreElements()) {
-                    log.trace("  " + en.nextElement());
+                    log.debug("  " + en.nextElement());
                 }
             }
 
@@ -475,7 +474,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
 
             currentSessionIsPersisted.set(true);
 
-            log.trace("Setting expire timeout on session [" + redisSession.getId() + "] to " + getMaxInactiveInterval());
+            log.debug("Setting expire timeout on session [" + redisSession.getId() + "] to " + getMaxInactiveInterval());
             jedis.expire(binaryId, getMaxInactiveInterval());
 
             error = false;
@@ -500,7 +499,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         Jedis jedis = null;
         Boolean error = true;
 
-        log.trace("Removing session ID : " + session.getId());
+        log.debug("Removing session ID : " + session.getId());
 
         try {
             jedis = acquireConnection();
@@ -519,7 +518,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
             currentSession.remove();
             currentSessionId.remove();
             currentSessionIsPersisted.remove();
-            log.trace("Session removed from ThreadLocal :" + redisSession.getIdInternal());
+            log.debug("Session removed from ThreadLocal :" + redisSession.getIdInternal());
         }
     }
 

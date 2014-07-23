@@ -25,7 +25,6 @@ public class RedisSessionHandlerValve extends ValveBase {
             return;
         }
         try {
-
             getNext().invoke(request, response);
         } finally {
             final Session session = request.getSessionInternal(false);
@@ -51,7 +50,7 @@ public class RedisSessionHandlerValve extends ValveBase {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("error storing or removing session", e);
         }
     }
 }
