@@ -34,6 +34,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
     protected String host = "localhost";
     protected int port = 6379;
     protected int database = 0;
+    protected int retryWaitTime = 500;
     protected String password = null;
     protected int timeout = Protocol.DEFAULT_TIMEOUT;
     protected JedisPool connectionPool;
@@ -93,8 +94,12 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         this.password = password;
     }
 
-    public void setSerializationStrategyClass(String strategy) {
-        this.serializationStrategyClass = strategy;
+    public String getSerializationStrategyClass() {
+        return serializationStrategyClass;
+    }
+
+    public void setSerializationStrategyClass(String serializationStrategyClass) {
+        this.serializationStrategyClass = serializationStrategyClass;
     }
 
     public int getMaxIdle() {
@@ -113,6 +118,13 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         this.connectionPoolConfig.setMinIdle(minIdle);
     }
 
+    public int getRetryWaitTime() {
+        return retryWaitTime;
+    }
+
+    public void setRetryWaitTime(int retryWaitTime) {
+        this.retryWaitTime = retryWaitTime;
+    }
 
     @Override
     public int getRejectedSessions() {
@@ -392,7 +404,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
     }
 
     public RedisSession loadSessionFromRedis(String id) throws IOException {
-        RedisSession session;
+        RedisSession session = null;
 
         Jedis jedis = null;
         Boolean error = true;
@@ -401,7 +413,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
             log.debug("Attempting to load session " + id + " from Redis");
 
             jedis = acquireConnection();
-            byte[] data = jedis.get(id.getBytes());
+            byte[] data = loadSessionFromRedisWithRetry(id, jedis);
             error = false;
 
             if (data == null) {
@@ -411,8 +423,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
                 throw new IllegalStateException("Race condition encountered: attempted to load session[" + id + "] which has been created but not yet serialized.");
             } else {
                 log.debug("Deserializing session " + id + " from Redis");
-                session = (RedisSession) createEmptySession();
-                serializer.deserializeInto(data, session);
+                session = serializer.deserialize(data, this);
                 session.setId(id);
                 session.setNew(false);
                 session.setMaxInactiveInterval(getMaxInactiveInterval() * 1000);
@@ -436,11 +447,29 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         } catch (ClassNotFoundException ex) {
             log.fatal("Unable to deserialize into session", ex);
             throw new IOException("Unable to deserialize into session", ex);
+        } catch (Exception ex) {
+            log.fatal("Unable to deserialize into session", ex);
+            throw new RuntimeException("Unable to deserialize into session", ex);
         } finally {
             if (jedis != null) {
                 returnConnection(jedis, error);
             }
         }
+    }
+
+    private byte[] loadSessionFromRedisWithRetry(String sessionId, Jedis jedis) throws InterruptedException {
+        byte[] data = jedis.get(sessionId.getBytes());
+        int retryCount = 0;
+        while(Arrays.equals(NULL_SESSION, data)) {
+            if(retryCount++ == 4) {
+                jedis.del(sessionId);
+                return data;
+            }
+            Thread.sleep(retryWaitTime);
+            data = jedis.get(sessionId.getBytes());
+        }
+
+        return data;
     }
 
     public void save(Session session) throws IOException {
@@ -469,7 +498,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
 
             Boolean isCurrentSessionPersisted = this.currentSessionIsPersisted.get();
             if (sessionIsDirty || (isCurrentSessionPersisted == null || !isCurrentSessionPersisted)) {
-                jedis.set(binaryId, serializer.serializeFrom(redisSession));
+                jedis.set(binaryId, serializer.serialize(redisSession));
             }
 
             currentSessionIsPersisted.set(true);

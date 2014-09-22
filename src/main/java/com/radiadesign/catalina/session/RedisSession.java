@@ -1,58 +1,39 @@
 package com.radiadesign.catalina.session;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.security.Principal;
 
 import org.apache.catalina.Manager;
 import org.apache.catalina.session.StandardSession;
 
-import java.util.HashMap;
-
 
 public class RedisSession extends StandardSession {
-    protected static Boolean manualDirtyTrackingSupportEnabled = false;
+    protected boolean dirty;
 
-    public static void setManualDirtyTrackingSupportEnabled(Boolean enabled) {
-        manualDirtyTrackingSupportEnabled = enabled;
+    public RedisSession() {
+        super(null);
+        resetDirtyTracking();
     }
-
-    protected static String manualDirtyTrackingAttributeKey = "__changed__";
-
-    public static void setManualDirtyTrackingAttributeKey(String key) {
-        manualDirtyTrackingAttributeKey = key;
-    }
-
-
-    protected HashMap<String, Object> changedAttributes;
-    protected Boolean dirty;
 
     public RedisSession(Manager manager) {
         super(manager);
         resetDirtyTracking();
     }
 
-    public Boolean isDirty() {
-        return dirty || !changedAttributes.isEmpty();
-    }
 
-    public HashMap<String, Object> getChangedAttributes() {
-        return changedAttributes;
+    public Boolean isDirty() {
+        return dirty;
     }
 
     public void resetDirtyTracking() {
-        changedAttributes = new HashMap<String, Object>();
         dirty = false;
     }
 
     @Override
     public void setAttribute(String key, Object value) {
-        if (manualDirtyTrackingSupportEnabled && manualDirtyTrackingAttributeKey.equals(key)) {
-            dirty = true;
-            return;
-        }
-
-        changedAttributes.put(key, value);
-
-
+        dirty = true;
         super.setAttribute(key, value);
     }
 
@@ -76,4 +57,16 @@ public class RedisSession extends StandardSession {
         super.setPrincipal(principal);
     }
 
+    @Override
+    protected void readObject(ObjectInputStream stream)
+            throws ClassNotFoundException, IOException {
+        super.readObject(stream);
+        dirty = stream.readBoolean();
+    }
+
+    @Override
+    protected void writeObject(ObjectOutputStream stream) throws IOException {
+        super.writeObject(stream);
+        stream.writeBoolean(dirty);
+    }
 }
