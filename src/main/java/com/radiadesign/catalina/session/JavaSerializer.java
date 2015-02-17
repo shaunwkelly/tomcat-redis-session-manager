@@ -33,6 +33,7 @@ public class JavaSerializer implements Serializer {
         ObjectInputStream ois = new CustomObjectInputStream(bis, loader);
         redisSession.setCreationTime(ois.readLong());
         redisSession.readObjectData(ois);
+        ois.close();
 
         return redisSession;
     }
