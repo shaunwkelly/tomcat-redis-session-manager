@@ -16,20 +16,17 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Protocol;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.Set;
+import java.security.Security;
+import java.util.*;
 
 import org.apache.juli.logging.Log;
 import org.apache.juli.logging.LogFactory;
 
 
 public class RedisSessionManager extends ManagerBase implements Lifecycle {
+    private final Log log = LogFactory.getLog(RedisSessionManager.class);
 
     protected byte[] NULL_SESSION = "null".getBytes();
-
-    private final Log log = LogFactory.getLog(RedisSessionManager.class);
 
     protected String host = "localhost";
     protected int port = 6379;
@@ -124,6 +121,11 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
 
     public void setRetryWaitTime(int retryWaitTime) {
         this.retryWaitTime = retryWaitTime;
+    }
+
+    public RedisSessionManager() {
+        super();
+        Security.setProperty("networkaddress.cache.ttl", "60");
     }
 
     @Override
@@ -349,6 +351,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
             session = loadSessionFromRedis(id);
 
             if (session != null) {
+                session.access();
                 currentSessionIsPersisted.set(true);
             }
         }
@@ -410,25 +413,31 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         Boolean error = true;
 
         try {
-            log.debug("Attempting to load session " + id + " from Redis");
+            if(log.isDebugEnabled()){
+                log.debug("Attempting to load session " + id + " from Redis");
+            }
 
             jedis = acquireConnection();
             byte[] data = loadSessionFromRedisWithRetry(id, jedis);
             error = false;
 
             if (data == null) {
-                log.debug("Session " + id + " not found in Redis");
+                if(log.isDebugEnabled()){
+                    log.debug("Session " + id + " not found in Redis");
+                }
                 session = null;
             } else if (Arrays.equals(NULL_SESSION, data)) {
                 throw new IllegalStateException("Race condition encountered: attempted to load session[" + id + "] which has been created but not yet serialized.");
             } else {
-                log.debug("Deserializing session " + id + " from Redis");
+                if(log.isDebugEnabled()){
+                    log.debug("Deserializing session " + id + " from Redis");
+                }
                 session = serializer.deserialize(data, this);
                 session.setId(id);
                 session.setNew(false);
-                session.setMaxInactiveInterval(getMaxInactiveInterval() * 1000);
-                session.access();
-                session.setValid(true);
+                session.setMaxInactiveInterval(getMaxInactiveInterval() );
+                //session.access();
+                //session.setValid(true);
                 session.resetDirtyTracking();
 
                 if (log.isTraceEnabled()) {
@@ -461,7 +470,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         byte[] data = jedis.get(sessionId.getBytes());
         int retryCount = 0;
         while(Arrays.equals(NULL_SESSION, data)) {
-            if(retryCount++ == 4) {
+            if(retryCount++ == 8) {
                 jedis.del(sessionId);
                 return data;
             }
@@ -477,7 +486,9 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         Boolean error = true;
 
         try {
-            log.debug("Saving session " + session + " into Redis");
+            if(log.isDebugEnabled()) {
+                log.debug("Saving session " + session + " into Redis");
+            }
 
             RedisSession redisSession = (RedisSession) session;
 
@@ -503,8 +514,10 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
 
             currentSessionIsPersisted.set(true);
 
-            log.debug("Setting expire timeout on session [" + redisSession.getId() + "] to " + getMaxInactiveInterval());
-            jedis.expire(binaryId, getMaxInactiveInterval());
+            if(log.isDebugEnabled()){
+                log.debug("Setting expire timeout on session [" + redisSession.getId() + "] to " + getMaxInactiveInterval());
+            }
+            jedis.expire(binaryId, getMaxInactiveInterval() + 90);
 
             error = false;
         } catch (IOException e) {
@@ -528,7 +541,9 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         Jedis jedis = null;
         Boolean error = true;
 
-        log.debug("Removing session ID : " + session.getId());
+        if(log.isDebugEnabled()){
+            log.debug("Removing session ID : " + session.getId());
+        }
 
         try {
             jedis = acquireConnection();
@@ -547,15 +562,38 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
             currentSession.remove();
             currentSessionId.remove();
             currentSessionIsPersisted.remove();
-            log.debug("Session removed from ThreadLocal :" + redisSession.getIdInternal());
+            if(log.isDebugEnabled()) {
+                log.debug("Session removed from ThreadLocal :" + redisSession.getIdInternal());
+            }
         }
     }
 
     @Override
     public void processExpires() {
-        // We are going to use Redis's ability to expire keys for session expiration.
-
-        // Do nothing.
+        try {
+            long timeNow = System.currentTimeMillis();
+            String[] sessionIds = keys();
+            if(log.isDebugEnabled()) {
+                    log.debug("Start expire sessions " + getName() + " at " + timeNow + " sessionId count " + sessionIds.length);
+            }
+            int expireHere = 0 ;
+            for(String sessionId: sessionIds) {
+                if(sessionId.startsWith("ElastiCache")) {
+                    continue;
+                }
+                RedisSession redisSession = loadSessionFromRedis(sessionId);
+                if (redisSession != null && !redisSession.isValid()) {
+                    expireHere++;
+                }
+            }
+            long timeEnd = System.currentTimeMillis();
+            if(log.isDebugEnabled()) {
+                log.debug("End expire sessions " + getName() + " processingTime " + (timeEnd - timeNow) + " expired sessions: " + expireHere);
+            }
+            processingTime += ( timeEnd - timeNow );
+        } catch (Exception e) {
+            log.error("Error processing expired sessions", e);
+        }
     }
 
     private void initializeDatabaseConnection() throws LifecycleException {
@@ -563,7 +601,7 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
             // TODO: Allow configuration of pool (such as size...)
             connectionPool = new JedisPool(this.connectionPoolConfig, getHost(), getPort(), getTimeout(), getPassword());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Error Connecting to Redis", e);
             throw new LifecycleException("Error Connecting to Redis", e);
         }
     }
@@ -573,13 +611,11 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         serializer = (Serializer) Class.forName(serializationStrategyClass).newInstance();
 
         Loader loader = null;
-
         if (container != null) {
             loader = container.getLoader();
         }
 
         ClassLoader classLoader = null;
-
         if (loader != null) {
             classLoader = loader.getClassLoader();
         }
