@@ -1,13 +1,7 @@
 package com.radiadesign.catalina.session;
 
-import org.apache.catalina.Lifecycle;
-import org.apache.catalina.LifecycleException;
-import org.apache.catalina.LifecycleListener;
+import org.apache.catalina.*;
 import org.apache.catalina.util.LifecycleSupport;
-import org.apache.catalina.LifecycleState;
-import org.apache.catalina.Loader;
-import org.apache.catalina.Valve;
-import org.apache.catalina.Session;
 import org.apache.catalina.session.ManagerBase;
 
 import redis.clients.jedis.JedisPool;
@@ -16,6 +10,8 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Protocol;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.security.Security;
 import java.util.*;
 
@@ -222,6 +218,9 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
             log.fatal("Unable to load serializer", e);
             throw new LifecycleException(e);
         } catch (IllegalAccessException e) {
+            log.fatal("Unable to load serializer", e);
+            throw new LifecycleException(e);
+        } catch (ReflectiveOperationException e) {
             log.fatal("Unable to load serializer", e);
             throw new LifecycleException(e);
         }
@@ -606,13 +605,25 @@ public class RedisSessionManager extends ManagerBase implements Lifecycle {
         }
     }
 
-    private void initializeSerializer() throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+    private void initializeSerializer() throws ClassNotFoundException, IllegalAccessException, InstantiationException, ReflectiveOperationException {
         log.info("Attempting to use serializer :" + serializationStrategyClass);
         serializer = (Serializer) Class.forName(serializationStrategyClass).newInstance();
 
         Loader loader = null;
-        if (container != null) {
-            loader = container.getLoader();
+        Object container = null;
+
+        try {
+            Method method = super.getClass().getMethod("getContext");
+            container = method.invoke(this);
+        } catch (NoSuchMethodException ex) {
+            Method method = super.getClass().getMethod("getContainer");
+            container = method.invoke(this);
+        }
+
+        if(container != null) {
+            log.error("container: " + container.getClass().getName());
+            Method method = container.getClass().getMethod("getLoader");
+            loader = (Loader)method.invoke(container);
         }
 
         ClassLoader classLoader = null;
