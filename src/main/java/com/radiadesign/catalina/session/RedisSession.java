@@ -58,15 +58,15 @@ public class RedisSession extends StandardSession {
     }
 
     @Override
-    protected void readObject(ObjectInputStream stream)
+    protected void doReadObject(ObjectInputStream stream)
             throws ClassNotFoundException, IOException {
-        super.readObject(stream);
+        super.doReadObject(stream);
         dirty = stream.readBoolean();
     }
 
     @Override
-    protected void writeObject(ObjectOutputStream stream) throws IOException {
-        super.writeObject(stream);
+    protected void doWriteObject(ObjectOutputStream stream) throws IOException {
+        super.doWriteObject(stream);
         stream.writeBoolean(dirty);
     }
 }
