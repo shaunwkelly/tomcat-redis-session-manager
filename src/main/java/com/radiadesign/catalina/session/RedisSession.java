@@ -61,7 +61,7 @@ public class RedisSession extends StandardSession {
     protected void doReadObject(ObjectInputStream stream)
             throws ClassNotFoundException, IOException {
         super.doReadObject(stream);
-        dirty = stream.readBoolean();
+        //dirty = stream.readBoolean();
     }
 
     @Override
